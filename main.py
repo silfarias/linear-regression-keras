@@ -7,9 +7,13 @@ from keras.api.layers import Dense
 from keras.api.optimizers import SGD
 
 def lectura_csv(file):
-    dataFrame = pd.read_csv(file)
-    return dataFrame
-
+    try:
+        dataFrame = pd.read_csv(file)
+        return dataFrame
+    except FileNotFoundError:
+        print(f'No se encontro el archivo {file}')
+        return None
+        
 
 def normalizar_datos(data):
     data['Altura'] = data['Altura'] / data['Altura'].max() # dividimos cada valor por el maximo
@@ -27,14 +31,11 @@ def generation_model():
     
     # capa de entrada, capa de salida y la funcion de activacion
     capa = Dense(output_dim, input_dim=input_dim, activation='linear') 
-    
     modelo.add(capa)
     
     # creamos una instancia del gradiente descendente con una tasa de aprendizaje
     sdg = SGD(learning_rate=0.0001)
-    
     modelo.compile(loss='mse', optimizer=sdg) # funcion de error: Mean Squared Error
-
     modelo.summary() # mostramos resumen del modelo
     return modelo
     
@@ -44,31 +45,77 @@ def entrenamiento_modelo(modelo, data):
     x = data['Altura'].values
     y = data['Peso'].values
     
-    print("Revisando los datos:")
-    print(f"Min Altura: {x.min()}, Max Altura: {x.max()}")
-    print(f"Min Peso: {y.min()}, Max Peso: {y.max()}")
+    # print("revisando datos:")
+    # print(f"min altura: {x.min()}, max altura: {x.max()}")
+    # print(f"min Peso: {y.min()}, max peso: {y.max()}")
     
     
-    num_epochs = 50 # numero de ciclos de entrenamiento
+    num_epochs = 1000 # numero de ciclos de entrenamiento
     batch_size = x.shape[0] # el tamaño de datos 
     
-    history = modelo.fit(x, y, epochs=num_epochs, batch_size=batch_size, verbose=1) # resultados del entrenamiento
+    history = modelo.fit(x, y, epochs=num_epochs, batch_size=batch_size, verbose=1) # resultados del entrenamiento, comportamiento de perdida 
     
     capa = modelo.layers[0]
-    w, b = capa.get_weights()
-    print('Parámetros: w = {:.1f}, b = {:.1f}'.format(w[0][0], b[0]))
+    
+    # parametros del modelo para minimizar la perdida
+    w, b = capa.get_weights() # peso y sesgo
+    print('Parámetros: w = {:.4f}, b = {:.4f}'.format(w[0][0], b[0]))
+    
+    return history, w[0][0], b[0]
+
+
+# mostramos como evoluciona el ECM
+def grafico_ecm(history):
+    # plt.subplot(1, 2, 1)
+    plt.figure(figsize=(10, 5))
+    plt.plot(history.history['loss'], 'b-', label='ECM')
+    plt.xlabel('Épocas')
+    plt.ylabel('ECM')
+    plt.title('ECM vs. Épocas')
+    plt.legend()
+    plt.grid(True)
+    plt.show()
     
 
-def graficos(history):
-    plt.subplot(1, 2, 1)
-    plt.plot(history.history['loss'])
-    plt.xlabel('epoch')
-    plt.ylabel('ECM')
-    plt.title('ECM vs. epochs')
+def grafico_regresion(data, w, b):
+    x = data['Altura'].values
+    y = data['Peso'].values
+    
+    y_prediccion = w * x + b
+    
+    plt.scatter(x, y, label='Datos originales', color='blue')
+    plt.plot(x, y_prediccion, label='Recta de Regresión', color='red')
+    plt.xlabel('Altura (Normalizada)')
+    plt.ylabel('Peso (Normalizado)')
+    plt.title('Recta de Regresión vs. Datos Originales')
+    plt.legend()
+    plt.show()
 
 
+def prediccion(modelo, altura_cm, data):
+    alt_max = data['Altura'].max()
+    alt_norm = altura_cm / alt_max
+    
+    y_pred = modelo.predict(np.array([alt_norm]))
+    
+    
+    peso_max = data['Peso'].max()
+    peso = y_pred[0][0] * peso_max
+    
+    print(f'El peso para una persona de {altura_cm} cm es de {peso:.2f} kg')
+    return peso
 
-data = lectura_csv('altura_peso.csv')
-data = normalizar_datos(data)
-modelo = generation_model()
-entrenamiento_modelo(modelo, data)
+
+def main():
+    data = lectura_csv('altura_peso.csv')
+    data = normalizar_datos(data)
+    modelo = generation_model()
+    history, w, b = entrenamiento_modelo(modelo, data)
+    grafico_ecm(history)
+    grafico_regresion(data, w, b)
+    
+    altura = 170
+    prediccion(modelo, altura, data)
+    
+if __name__ == '__main__':
+    main()
