@@ -34,7 +34,7 @@ def generation_model():
     modelo.add(capa)
     
     # creamos una instancia del gradiente descendente con una tasa de aprendizaje
-    sdg = SGD(learning_rate=0.0001)
+    sdg = SGD(learning_rate=0.0004)
     modelo.compile(loss='mse', optimizer=sdg) # funcion de error: Mean Squared Error
     modelo.summary() # mostramos resumen del modelo
     return modelo
