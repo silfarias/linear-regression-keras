@@ -15,10 +15,12 @@ def lectura_csv(file):
         return None
         
 
-def normalizar_datos(data):
-    data['Altura'] = data['Altura'] / data['Altura'].max() # dividimos cada valor por el maximo
-    data['Peso'] = data['Peso'] / data['Peso'].max() # asi aseguramos que los valores esten entre 0 y 1
-    return data
+def normalizar_datos(x, y):
+    # utilizamos la tecnica min-max scaling para normalizar los datos
+    # asi nos aseguramos que los valores esten entre 0 y 1
+    n_x = (x - x.min()) / (x.max() - x.min())
+    n_y = (y - y.min()) / (y.max() - y.min())
+    return n_x, n_y
 
 
 def generation_model():
@@ -40,26 +42,18 @@ def generation_model():
     return modelo
     
 
-def entrenamiento_modelo(modelo, data):
-    
-    x = data['Altura'].values
-    y = data['Peso'].values
-    
-    # print("revisando datos:")
-    # print(f"min altura: {x.min()}, max altura: {x.max()}")
-    # print(f"min Peso: {y.min()}, max peso: {y.max()}")
-    
-    
+def entrenamiento_modelo(modelo, n_x, n_y):
+
     num_epochs = 1000 # numero de ciclos de entrenamiento
-    batch_size = x.shape[0] # el tamaño de datos 
+    batch_size = n_x.shape[0] # el tamaño de datos 
     
-    history = modelo.fit(x, y, epochs=num_epochs, batch_size=batch_size, verbose=1) # resultados del entrenamiento, comportamiento de perdida 
+    history = modelo.fit(n_x, n_y, epochs=num_epochs, batch_size=batch_size, verbose=1) # resultados del entrenamiento, comportamiento de perdida 
     
     capa = modelo.layers[0]
     
     # parametros del modelo para minimizar la perdida
     w, b = capa.get_weights() # peso y sesgo
-    print('Parámetros: w = {:.4f}, b = {:.4f}'.format(w[0][0], b[0]))
+    print('Parámetros: w = {:.1f}, b = {:.1f}'.format(w[0][0], b[0]))
     
     return history, w[0][0], b[0]
 
@@ -80,27 +74,36 @@ def grafico_ecm(history):
 def grafico_regresion(data, w, b):
     x = data['Altura'].values
     y = data['Peso'].values
-    
-    y_prediccion = w * x + b
-    
+
+    # normalizamos x (altura)
+    n_x = (x - x.min()) / (x.max() - x.min())
+
+    # predicción utilizando el modelo con datos normalizados
+    y_pred_normalizado = w * n_x + b
+
+    # volvemos a escalar las predicciones a la escala original de y (peso)
+    y_pred = y_pred_normalizado * (y.max() - y.min()) + y.min()
+
     plt.scatter(x, y, label='Datos originales', color='blue')
-    plt.plot(x, y_prediccion, label='Recta de Regresión', color='red')
-    plt.xlabel('Altura (Normalizada)')
-    plt.ylabel('Peso (Normalizado)')
+    plt.plot(x, y_pred, label='Recta de Regresión', color='red')
+    plt.xlabel('Altura')
+    plt.ylabel('Peso')
     plt.title('Recta de Regresión vs. Datos Originales')
     plt.legend()
     plt.show()
 
 
 def prediccion(modelo, altura_cm, data):
+    alt_min = data['Altura'].min()
     alt_max = data['Altura'].max()
-    alt_norm = altura_cm / alt_max
+
+    alt_norm = (altura_cm - alt_min) / (alt_max - alt_min)
     
     y_pred = modelo.predict(np.array([alt_norm]))
     
-    
+    peso_min = data['Peso'].min()
     peso_max = data['Peso'].max()
-    peso = y_pred[0][0] * peso_max
+    peso = y_pred[0][0] * (peso_max - peso_min) + peso_min
     
     print(f'El peso para una persona de {altura_cm} cm es de {peso:.2f} kg')
     return peso
@@ -108,9 +111,21 @@ def prediccion(modelo, altura_cm, data):
 
 def main():
     data = lectura_csv('altura_peso.csv')
-    data = normalizar_datos(data)
+
+    # obtenemos los valores originales de altura y peso
+    x = data['Altura'].values
+    y = data['Peso'].values
+
+    n_x, n_y = normalizar_datos(x, y)
+
+    # sustituimos los valores originales por los normalizados
+    data['Altura'] = n_x
+    data['Peso'] = n_y
+
+    # genera el modelo y entrena
     modelo = generation_model()
-    history, w, b = entrenamiento_modelo(modelo, data)
+    history, w, b = entrenamiento_modelo(modelo, n_x, n_y)
+
     grafico_ecm(history)
     grafico_regresion(data, w, b)
     
